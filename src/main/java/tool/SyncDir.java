@@ -9,11 +9,11 @@ import java.util.concurrent.Callable;
 
 /**
  * This is a tool to sync two dir(s)
- * the difference with other tools like rsync is: it just prints linux commands needed to sync those two dirs.
+ * the difference with other tools like rsync is: it just prints linux commands to sync those two dirs,
  * instead of changing any files.
  * 
- * for comparing files, if two files with same last modification time and size, they are considered same.
- * it will ignore those symbol links.
+ * when comparing files, if two files with same last modification time and size, they are considered same.
+ * it will ignore symbol links in the left dir.
  * 
  * @author chenzero 
  * 2019-12-30
@@ -84,7 +84,17 @@ public class SyncDir implements Callable<Void> {
 	
 	private void compareDir(String rpath, File dir1, File dir2, Stack<String> stk, boolean delFlag) throws Exception {
 		File[] fs1 = dir1.listFiles();
+		if(fs1==null) {
+			System.out.println("# ERROR: Do not have permission to list dir: " + dir1.getCanonicalPath());
+			return;
+		}
+		
 		File[] fs2 = dir2.listFiles();
+		if(fs2==null) {
+			System.out.println("# ERROR: Do not have permission to list dir: " + dir2.getCanonicalPath());
+			return;
+		}
+		
 		FileInfo[] fss2 = new FileInfo[fs2.length];
 		for(int i=0;i<fs2.length;i++) {
 			fss2[i] = new FileInfo(fs2[i]);
@@ -100,7 +110,7 @@ public class SyncDir implements Callable<Void> {
 		for(int i=fs1.length-1;i>=0;i--) {
 			// skip symbol link
 			if (Files.isSymbolicLink(fs1[i].toPath())) {
-				System.err.println("# Skip symbol link: " + fs1[i].getCanonicalPath());
+				System.out.println("# Skip symbol link: " + fs1[i].getAbsolutePath() );
 				continue;
 			}
 			
@@ -152,7 +162,7 @@ public class SyncDir implements Callable<Void> {
 							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'\n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath() );
 						}
 						else {
-							System.err.printf("# ERROR: can not remove dir in right, left: %s right: %s \n", fs1[i].getCanonicalPath(), fss2[idx].f.getCanonicalPath() );
+							System.out.printf("# ERROR: can not remove dir in right, left: %s right: %s \n", fs1[i].getCanonicalPath(), fss2[idx].f.getCanonicalPath() );
 							throw new IOException("can not delete dir");
 						}
 					}
@@ -163,7 +173,7 @@ public class SyncDir implements Callable<Void> {
 							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'\n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath() );
 						}
 						else {
-							System.err.printf("# ERROR: can not remove special file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
+							System.out.printf("# ERROR: can not remove special file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
 							throw new IOException("can not delete dir");
 						}
 					}
@@ -178,7 +188,7 @@ public class SyncDir implements Callable<Void> {
 							System.out.printf("/bin/cp --preserve=timestamps -R '%s' '%s'\n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath() );
 						}
 						else {
-							System.err.printf("# ERROR: can not remove file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
+							System.out.printf("# ERROR: can not remove file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
 							throw new IOException("can not remove file: " + fss2[idx].f.getCanonicalPath());
 						}
 					}
@@ -192,15 +202,22 @@ public class SyncDir implements Callable<Void> {
 		if(delFlag) {
 			for(FileInfo fi: fss2) {
 				if(!fi.processed) {
-					if(fi.f.isFile()) {
-						System.out.printf("rm -f '%s'\n", fi.f.getCanonicalPath() );
-					}
-					else if(fi.f.isDirectory()) {
-						System.out.printf("rm -Rf '%s'\n", fi.f.getCanonicalPath() );
+					if (Files.isSymbolicLink(fi.f.toPath())) {
+						//System.out.printf("# delete symbol link\n" );
+						// for symbol link, getCanonicalPath will return target path, not symbol link path.
+						System.out.printf("rm -f '%s'; # rm symbol link\n", fi.f.getAbsolutePath() ); 
 					}
 					else {
-						System.out.printf("WARNING: delete special file \n" );
-						System.out.printf("rm -f '%s'\n", fi.f.getCanonicalPath() );
+						if(fi.f.isFile()) {
+							System.out.printf("rm -f '%s'; # WARNING: unprocessed file \n", fi.f.getCanonicalPath() );
+						}
+						else if(fi.f.isDirectory()) {
+							System.out.printf("rm -Rf '%s'; # WARNING: unprocessed dir \n", fi.f.getCanonicalPath() );
+						}
+						else {
+							System.out.printf("# WARNING: remove special file \n" );
+							System.out.printf("rm -f '%s'; # Special file; \n", fi.f.getCanonicalPath());
+						}
 					}
 				}
 			}
@@ -217,21 +234,28 @@ public class SyncDir implements Callable<Void> {
 		stk.add("");
 		
 		String relPath;
+		ProgressBar pb = new ProgressBar(System.err);
+		
+		int finished = 0;
 		while (stk.size() > 0) {
 			relPath = stk.remove(0);
 			
 			File d1 = new File(lpath + relPath);
 			File d2 = new File(rpath + relPath);
 			
+			pb.update( finished, finished + stk.size() );
 			// TODO: the delFlag is alway true
 			compareDir(relPath, d1, d2, stk, true);
+
+			finished ++;
 		}
+		pb.done(null);
 		return null;
 	}
 	
 	public static void main(String[] args) throws Exception {
 		if(args.length!=2) {
-			System.out.println("SyncDir leftDir rightDir");
+			System.err.println("SyncDir leftDir rightDir");
 			System.exit(1);
 			return;
 		}
