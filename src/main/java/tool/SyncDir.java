@@ -13,7 +13,9 @@ import java.util.concurrent.Callable;
  * instead of changing any files.
  * 
  * when comparing files, if two files with same last modification time and size, they are considered same.
+ * 
  * it will ignore symbol links in the left dir.
+ * NOTE: it will delete extra files in the right dir.
  *
  * It's assumed that filename should not include single quote(').
  * following linux command can find the files include single quote:
