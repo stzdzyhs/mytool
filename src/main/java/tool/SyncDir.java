@@ -42,6 +42,17 @@ public class SyncDir implements Callable<Void> {
 		}
 	}
 	
+	// https://unix.stackexchange.com/questions/347332/what-characters-need-to-be-escaped-in-files-without-quotes
+	/** 
+	 * escape single quote
+	 * @param s
+	 * @return
+	 */
+	public static String escapeSingleQuote(String s) {
+		s = s.replace("'", "'\\''");
+		return s;
+	}
+	
 	/**
 	 * a private class used for sorting and comparing
 	 */
@@ -128,11 +139,11 @@ public class SyncDir implements Callable<Void> {
 			if(idx<0) { // not found
 				if(fs1[i].isFile()) {
 					reason = "copy a new file";
-					System.out.printf("cp --preserve=timestamps '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+					System.out.printf("cp --preserve=timestamps '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), escapeSingleQuote(dir2.getCanonicalPath()), reason );
 				}
 				else if(fs1[i].isDirectory()) {
 					reason = "copy a new dir";
-					System.out.printf("cp --preserve=timestamps -R '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+					System.out.printf("cp --preserve=timestamps -R '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), escapeSingleQuote(dir2.getCanonicalPath()), reason );
 				}
 				else {
 					System.out.printf("# WARNING: Skip other file: %s \n", fs1[i].getCanonicalPath());
@@ -154,7 +165,8 @@ public class SyncDir implements Callable<Void> {
 							}
 							else {
 								reason = "WARNING: found two files with same timestamp but in diff size\n";
-								System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ;\n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+								System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ;\n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+										escapeSingleQuote(dir2.getCanonicalPath()), reason );
 							}
 						}
 						else if(mt1<mt2) {							
@@ -164,19 +176,22 @@ public class SyncDir implements Callable<Void> {
 							else {
 								reason = "WARNING: overwrite a newer file ";
 							}
-							System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+							System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+									escapeSingleQuote(dir2.getCanonicalPath()), reason );
 						}
 						else { // mt1 > mt2,							
 							reason = "overwrite a old file";
-							System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+							System.out.printf("/bin/cp --preserve=timestamps -f '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+									escapeSingleQuote(dir2.getCanonicalPath()), reason );
 						}
 					}
 					else if(fss2[idx].f.isDirectory()) {
 						if(delFlag) {
 							reason = "WARNING: remove a dir in right since now its a file, 2-1 ";
-							System.out.printf("rm -Rf '%s'; # %s ; \n", fss2[idx].f.getCanonicalPath(), reason );
+							System.out.printf("rm -Rf '%s'; # %s ; \n", escapeSingleQuote(fss2[idx].f.getCanonicalPath()), reason );
 							reason = "cp a new file, 2-2";
-							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+									escapeSingleQuote(dir2.getCanonicalPath()), reason );
 						}
 						else {
 							System.out.printf("# ERROR: can not remove dir in right, left: %s right: %s \n", fs1[i].getCanonicalPath(), fss2[idx].f.getCanonicalPath() );
@@ -186,9 +201,10 @@ public class SyncDir implements Callable<Void> {
 					else {
 						if(delFlag) {
 							reason = "WARNING: remove a special file in right dir, 2-1";
-							System.out.printf("rm -f '%s'; # %s ; \n", fss2[idx].f.getCanonicalPath(), reason );
+							System.out.printf("rm -f '%s'; # %s ; \n", escapeSingleQuote(fss2[idx].f.getCanonicalPath()), reason );
 							reason = "copy a new file, 2-2";
-							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason );
+							System.out.printf("/bin/cp --preserve=timestamps '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+									escapeSingleQuote(dir2.getCanonicalPath()), reason);
 						}
 						else {
 							System.out.printf("# ERROR: can not remove special file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
@@ -203,9 +219,10 @@ public class SyncDir implements Callable<Void> {
 					else { // not care if fss2[idx].f is file or other special file  
 						if(delFlag) {
 							reason = "WARNING: remove Extra files in the right, 2-1 ";
-							System.out.printf("rm -f '%s'; # %s ; \n", fss2[idx].f.getCanonicalPath(), reason );
+							System.out.printf("rm -f '%s'; # %s ; \n", escapeSingleQuote(fss2[idx].f.getCanonicalPath()), reason );
 							reason = "cp the new dir, 2-2";
-							System.out.printf("/bin/cp --preserve=timestamps -R '%s' '%s'; # %s ; \n", fs1[i].getCanonicalPath(), dir2.getCanonicalPath(), reason);
+							System.out.printf("/bin/cp --preserve=timestamps -R '%s' '%s'; # %s ; \n", escapeSingleQuote(fs1[i].getCanonicalPath()), 
+									escapeSingleQuote(dir2.getCanonicalPath()), reason);
 						}
 						else {
 							System.out.printf("# ERROR: can not remove file in right dir: %s \n", fss2[idx].f.getCanonicalPath() );
@@ -226,20 +243,20 @@ public class SyncDir implements Callable<Void> {
 						//System.out.printf("# delete symbol link\n" );
 						// for symbol link, getCanonicalPath will return target path, not symbol link path.
 						reason = "rm smbol link";
-						System.out.printf("rm -f '%s'; # %s \n", fi.f.getAbsolutePath(), reason ); 
+						System.out.printf("rm -f '%s'; # %s \n", escapeSingleQuote(fi.f.getAbsolutePath()), reason ); 
 					}
 					else {
 						if(fi.f.isFile()) {
 							reason = "WARNING: rm Extra file in right";
-							System.out.printf("rm -f '%s'; # %s ; \n", fi.f.getCanonicalPath(), reason );
+							System.out.printf("rm -f '%s'; # %s ; \n", escapeSingleQuote(fi.f.getCanonicalPath()), reason );
 						}
 						else if(fi.f.isDirectory()) {
 							reason = "WARNING: rm Extra dir in right";
-							System.out.printf("rm -Rf '%s'; # %s \n", fi.f.getCanonicalPath(), reason );
+							System.out.printf("rm -Rf '%s'; # %s \n", escapeSingleQuote(fi.f.getCanonicalPath()), reason );
 						}
 						else {
 							reason = "WARNING: rm Extra special file in right";
-							System.out.printf("rm -f '%s'; # %s ; \n", fi.f.getCanonicalPath(), reason );
+							System.out.printf("rm -f '%s'; # %s ; \n", escapeSingleQuote(fi.f.getCanonicalPath()), reason );
 						}
 					}
 				}
